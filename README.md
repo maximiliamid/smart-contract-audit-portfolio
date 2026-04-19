@@ -102,7 +102,6 @@ See [`practice/README.md`](./practice/README.md) for the full list (6 Ethernaut 
 ## Contact
 
 - GitHub: [@maximiliamid](https://github.com/maximiliamid)
-- Email: REDACTED
 
 ---
 
