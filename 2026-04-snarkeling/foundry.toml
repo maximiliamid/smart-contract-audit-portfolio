@@ -1,0 +1,18 @@
+[profile.default]
+src = "contracts/src"
+test = "contracts/test"
+out = "out"
+libs = ["lib"]
+
+fs_permissions = [
+  { access = "read", path = "./" }
+]
+
+
+solc_version = "0.8.27"
+optimizer = true
+optimizer_runs = 5000
+
+# Helpful for large generated verifier contracts:
+# via_ir = true
+

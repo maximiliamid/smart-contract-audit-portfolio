@@ -1,0 +1,5 @@
+[package]
+name = "snarkeling"
+type = "bin"
+authors = ["s3mvl4d"]
+compiler_version = ">=1.0.0"

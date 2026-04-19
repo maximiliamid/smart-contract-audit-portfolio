@@ -1,0 +1,39 @@
+# Foundry build artifacts
+**/out/
+**/cache/
+**/broadcast/
+**/artifacts/
+
+# Dependencies
+**/lib/
+**/node_modules/
+
+# Lock files untuk Node (keep foundry.lock)
+**/package-lock.json
+**/yarn.lock
+
+# Environment & secrets
+.env
+.env.*
+*.pem
+*.key
+secret*
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Fork cache (Foundry)
+**/.foundry/
+
+# DeFiHackLabs (repo besar, user bisa clone sendiri)
+DeFiHackLabs/
