@@ -16,7 +16,7 @@ applied in the main audit reports.
 
 ## DeFi Hack Patterns
 
-### [`dvd-puppet/`](./dvd-puppet/) — Damn Vulnerable DeFi "Puppet" variant
+### [`dvd-puppet/`](./dvd-puppet/) — Damn Vulnerable DeFi "Puppet" variant (simplified)
 
 Flash loan + spot price oracle manipulation, reproducing the **Mango Markets $117M hack** pattern:
 
@@ -25,6 +25,37 @@ Flash loan + spot price oracle manipulation, reproducing the **Mango Markets $11
 - Attacker starts with 25 ETH + 1,000 DVT
 - Dumps DVT → spot price crashes → collateral requirement drops 10,000x
 - Drains 100,000 DVT with only 19 ETH collateral
+
+### [`damn-vulnerable-defi/`](./damn-vulnerable-defi/) — Official DVD v4.1
+
+Forked from [theredguild/damn-vulnerable-defi](https://github.com/theredguild/damn-vulnerable-defi).
+Solutions filled in for **14 of 18** challenges:
+
+| Challenge | Pattern |
+|---|---|
+| Unstoppable | ERC4626 invariant bypass via direct transfer |
+| Naive Receiver | Meta-tx `_msgSender()` spoofing via trusted forwarder + Multicall |
+| Truster | Arbitrary `target.call` → approve attacker |
+| Side Entrance | Flash loan + deposit back to credit attacker |
+| The Rewarder | Merkle claim loop transfers each iteration, `_setClaimed` only on switch |
+| Selfie | Flash loan governance tokens, queue emergency-exit action |
+| Compromised | Leaked HTTP hex → base64 → oracle private keys, control median price |
+| Puppet | Uniswap V1 spot-price oracle + ERC20 permit for 1-tx solve |
+| Puppet V2 | Uniswap V2 spot-price oracle manipulation |
+| Free Rider | Marketplace `msg.value` reused across buyMany loop + V2 flash swap |
+| Backdoor | Safe `setup(to, data)` delegatecall injection → infinite approval |
+| Climber | Timelock `execute` state check AFTER calls → schedule self mid-flight |
+| Puppet V3 | Uniswap V3 TWAP with short window, mainnet fork (block 15450164) |
+| ABI Smuggling | Hardcoded calldata offset bypass via non-standard bytes encoding |
+
+Remaining (harder, open for later): Wallet Mining, Shards, Curvy Puppet (mainnet fork Curve stablepool), Withdrawal (Optimism state proof).
+
+Run all solved:
+```bash
+cd practice/damn-vulnerable-defi
+export MAINNET_FORKING_URL=https://rpc.mevblocker.io  # for Puppet V3
+forge test --no-match-path "test/{wallet-mining,shards,curvy-puppet,withdrawal}/*"
+```
 
 ## Running tests
 
