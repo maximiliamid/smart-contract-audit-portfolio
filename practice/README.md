@@ -29,7 +29,7 @@ Flash loan + spot price oracle manipulation, reproducing the **Mango Markets $11
 ### [`damn-vulnerable-defi/`](./damn-vulnerable-defi/) — Official DVD v4.1
 
 Forked from [theredguild/damn-vulnerable-defi](https://github.com/theredguild/damn-vulnerable-defi).
-Solutions filled in for **16 of 18** challenges:
+Solutions filled in for **17 of 18** challenges:
 
 | Challenge | Pattern |
 |---|---|
@@ -49,14 +49,15 @@ Solutions filled in for **16 of 18** challenges:
 | ABI Smuggling | Hardcoded calldata offset bypass via non-standard bytes encoding |
 | Wallet Mining | TransparentProxy.upgrader collides with AuthorizerUpgradeable.needsInit at slot 0 → re-init |
 | Shards | fill() payment rounds to 0 while cancel() refund math ignores totalShards divisor |
+| Withdrawal | Operator bypass + underflow in TokenBridge + L1Forwarder.failedMessages pre-population to block the malicious 999k DVT withdrawal |
 
-Remaining (harder, open for later): Curvy Puppet (Curve stETH/ETH read-only reentrancy + mainnet fork), Withdrawal (cross-L2 message proof fraud analysis).
+Remaining (open for dedicated session): Curvy Puppet. Needs 3.3x pump of Curve stETH/ETH `get_virtual_price()` during read-only reentry, but this specific pool decrements balances BEFORE reentry and burns supply AFTER — naïve reentry DEFLATES virtual_price. Solution likely requires a specific primitive chain I haven't reconstructed.
 
 Run all solved:
 ```bash
 cd practice/damn-vulnerable-defi
 export MAINNET_FORKING_URL=https://rpc.mevblocker.io  # for Puppet V3
-forge test --no-match-path "test/{curvy-puppet,withdrawal}/*"
+forge test --no-match-path "test/curvy-puppet/*"
 ```
 
 ## Running tests

