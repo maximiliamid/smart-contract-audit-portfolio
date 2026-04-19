@@ -29,7 +29,7 @@ Flash loan + spot price oracle manipulation, reproducing the **Mango Markets $11
 ### [`damn-vulnerable-defi/`](./damn-vulnerable-defi/) — Official DVD v4.1
 
 Forked from [theredguild/damn-vulnerable-defi](https://github.com/theredguild/damn-vulnerable-defi).
-Solutions filled in for **14 of 18** challenges:
+Solutions filled in for **16 of 18** challenges:
 
 | Challenge | Pattern |
 |---|---|
@@ -47,14 +47,16 @@ Solutions filled in for **14 of 18** challenges:
 | Climber | Timelock `execute` state check AFTER calls → schedule self mid-flight |
 | Puppet V3 | Uniswap V3 TWAP with short window, mainnet fork (block 15450164) |
 | ABI Smuggling | Hardcoded calldata offset bypass via non-standard bytes encoding |
+| Wallet Mining | TransparentProxy.upgrader collides with AuthorizerUpgradeable.needsInit at slot 0 → re-init |
+| Shards | fill() payment rounds to 0 while cancel() refund math ignores totalShards divisor |
 
-Remaining (harder, open for later): Wallet Mining, Shards, Curvy Puppet (mainnet fork Curve stablepool), Withdrawal (Optimism state proof).
+Remaining (harder, open for later): Curvy Puppet (Curve stETH/ETH read-only reentrancy + mainnet fork), Withdrawal (cross-L2 message proof fraud analysis).
 
 Run all solved:
 ```bash
 cd practice/damn-vulnerable-defi
 export MAINNET_FORKING_URL=https://rpc.mevblocker.io  # for Puppet V3
-forge test --no-match-path "test/{wallet-mining,shards,curvy-puppet,withdrawal}/*"
+forge test --no-match-path "test/{curvy-puppet,withdrawal}/*"
 ```
 
 ## Running tests
