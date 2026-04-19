@@ -46,32 +46,10 @@ ETH_RPC_URL=https://ethereum-rpc.publicnode.com \
 
 See [FINDINGS.md](./2026-02-stratax-contracts/FINDINGS.md).
 
-## Ethernaut Challenges
+## Practice Exercises
 
-Classic vulnerability patterns from [Ethernaut by OpenZeppelin](https://ethernaut.openzeppelin.com):
-
-| Level | Topic | Folder |
-|---|---|---|
-| 1 | Fallback (receive() abuse) | [`level1-fallback/`](./level1-fallback/) |
-| 2 | Fallout (historical constructor typo) | [`level2-fallout/`](./level2-fallout/) |
-| 3 | Coin Flip (blockhash randomness) | [`level3-coinflip/`](./level3-coinflip/) |
-| 10 | Reentrancy (CEI violation + unchecked) | [`level10-reentrancy/`](./level10-reentrancy/) |
-| 22 | Dex (spot price oracle manipulation) | [`level22-dex/`](./level22-dex/) |
-| 24 | Puzzle Wallet (proxy storage collision) | [`level24-puzzle/`](./level24-puzzle/) |
-
-## DeFi Hack Patterns
-
-### [Damn Vulnerable DeFi — Puppet variant](./dvd-puppet/)
-
-Pattern: flash loan + spot price oracle manipulation.
-Reproduces the **Mango Markets $117M hack** (Oct 2022) pattern at small scale.
-
-Scenario:
-- Target Uniswap V1 pool: 10 ETH / 10 DVT (1:1 price)
-- Lending pool: 100,000 DVT, requires 2x collateral
-- Attacker: 25 ETH + 1,000 DVT
-- Attack: dump DVT → crash price → collateral requirement drops 10,000x
-- Result: drain 100,000 DVT with 19 ETH collateral
+Warm-up challenges used to build the pattern library applied in the audit reports above.
+See [`practice/README.md`](./practice/README.md) for the full list (6 Ethernaut levels + DVD Puppet variant reproducing the Mango Markets $117M pattern).
 
 ## Vulnerability Pattern Library
 
